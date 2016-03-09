@@ -113,11 +113,15 @@
     this.set("rules", options.rules || []);
     this.set("preview", options.rules || true);
     this.set("respectRadius", options.respectRadius || true);
-    this.updateTriangleMesh();
   };
 
   CATMAID.ConvexHullVolume.prototype = Object.create(CATMAID.Volume.prototype);
   CATMAID.ConvexHullVolume.prototype.constructor = CATMAID.ConvexHullVolume;
+
+  CATMAID.ConvexHullVolume.prototype.init = function() {
+    this.updateTriangleMesh();
+    return this;
+  };
 
   /**
    * Create a triangle mesh from the filtered nodes of the currently selected
@@ -166,7 +170,7 @@
 
   /**
    * For every compartment, find the synapses from KC onto MBONs of the
-   * compartmenr and generate the convex hull of such synapses, constructed as
+   * compartment and generate the convex hull of such synapses, constructed as
    * a mesh.  Returns a map of compartment name vs mesh.
    */
   var createCompartments = function(skeletons, compartments, skeleton_arbors, respectRadius) {
@@ -174,7 +178,7 @@
     return Object.keys(compartments).reduce(function(o, name) {
       var rules = compartments[name];
       if (!rules || 0 === rules.length) {
-        rules = defaultFilteRuleSet;
+        rules = defaultFilterRuleSet;
       }
       // Extract the set of rules defining this compartment. Also validate
       // skeleton constraints if there are any.
@@ -458,6 +462,23 @@
     };
   };
 
+  /** An alpha-shape volume. See:
+   *  https://github.com/mikolalysenko/alpha-shape
+   *  https://en.wikipedia.org/wiki/Alpha_shape
+   */
+  CATMAID.AlphaShapeVolume = function(options) {
+    CATMAID.ConvexHullVolume.call(this, options);
+    this.set("alpha", options.alpha || 0.1);
+  };
+
+  CATMAID.AlphaShapeVolume.prototype = Object.create(CATMAID.ConvexHullVolume.prototype);
+  CATMAID.AlphaShapeVolume.prototype.constructor = CATMAID.AlphaShapeVolume;
+
+  CATMAID.AlphaShapeVolume.prototype.init = function() {
+    this.updateTriangleMesh();
+    return this();
+  };
+
   /**
    * A skeleton rule filters accepts or reject a skeleton. Besides a filtering
    * strategy it has an optional list skeletons it is valid for. If this list is
@@ -619,7 +640,7 @@
   };
 
   // A default no-op filter rule that takes all nodes.
-  var defaultFilteRuleSet = [
+  var defaultFilterRuleSet = [
     new CATMAID.SkeletonFilterRule(CATMAID.NodeFilterStrategy['take-all'])
   ];
 
@@ -655,7 +676,7 @@
     return p;
   };
 
-  var multiplyComponens = function(m, p) {
+  var multiplyComponents = function(m, p) {
     p[0] = p[0] * m;
     p[1] = p[1] * m;
     p[2] = p[2] * m;
@@ -666,7 +687,7 @@
   CATMAID.getIcoSpherePoints = function(x, y, z, radius) {
     return unitIcoSpherePoints
       .map(copyPoint)
-      .map(multiplyComponens.bind(null, radius))
+      .map(multiplyComponents.bind(null, radius))
       .map(addToPoint.bind(null, x, y, z));
   };
 

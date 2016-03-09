@@ -173,7 +173,11 @@
     var title = function(e) { volume.title = this.value; };
     var comment = function(e) { volume.comment = this.value; };
     var typeSelect = CATMAID.DOM.createSelectSetting("Type",
-        { "Box": "box", "Convex Hull": "convexhull" },
+        {
+          "Box": "box",
+          "Convex Hull": "convexhull",
+          "Alpha shape": "alphashape"
+        },
         "The geometry type of this volume.", undefined, volumeType);
     $addContent.append(typeSelect);
     $('select', typeSelect).on('change', function() {
@@ -280,93 +284,31 @@
       return "convexhull";
     } else if (volume instanceof CATMAID.BoxVolume) {
       return "box";
+    } else if (volume instanceof CATMAID.AlphaShapeVolume) {
+      return "alphashape";
     } else {
       throw new CATMAID.ValueError("Unknown volume type");
     }
   };
 
-  var volumeTypes = {
-    "box": {
-      name: "Box",
+  /** Either convex hull or alpha-shape, which are almost identical. The alpha-shape has an extra parameter,
+   * the alpha. */
+  var makeVolume = function(name, theclass, withAlpha) {
+    return {
+      name: name,
       createSettings: function(volume) {
-        var minX = function(e) { volume.set("minX", Number(this.value)); };
-        var minY = function(e) { volume.set("minY", Number(this.value)); };
-        var minZ = function(e) { volume.set("minZ", Number(this.value)); };
-        var maxX = function(e) { volume.set("maxX", Number(this.value)); };
-        var maxY = function(e) { volume.set("maxY", Number(this.value)); };
-        var maxZ = function(e) { volume.set("maxZ", Number(this.value)); };
-        var $settings = $('<div />');
-        var $content = CATMAID.DOM.addSettingsContainer($settings,
-            "Box settings", false);
-        $content.append(CATMAID.DOM.createInputSetting("Min X", volume.minX,
-              "X coordinate of the boxes minimum corner.", minX));
-        $content.append(CATMAID.DOM.createInputSetting("Min Y", volume.minY,
-              "Y coordinate of the boxes minimum corner.", minY));
-        $content.append(CATMAID.DOM.createInputSetting("Min Z", volume.minZ,
-              "Z coordinate of the boxes minimum corner.", minZ));
-        $content.append(CATMAID.DOM.createInputSetting("Max X", volume.maxX,
-              "X coordinate of the boxes maximum corner.", maxX));
-        $content.append(CATMAID.DOM.createInputSetting("Max Y", volume.maxY,
-              "Y coordinate of the boxes maximum corner.", maxY));
-        $content.append(CATMAID.DOM.createInputSetting("Max Z", volume.maxZ,
-              "Z coordinate of the boxes maximum corner.", maxZ));
-
-        return $settings;
-      },
-      createVolume: function(options) {
-        return new CATMAID.BoxVolume(options);
-      },
-      /**
-       * Create an array of handlers: [onVolumeUpdate, onVolumeClose]
-       */
-      createHandlers: function(volume) {
-        var handlers = [null, null];
-        if (project.focusedStackViewer) {
-          var stack = project.focusedStackViewer;
-          // TODO: Use a proper layer for this and make this work wirh regular
-          // ortho stacks.
-          var boxTool = new CATMAID.BoxSelectionTool();
-          boxTool.destroy();
-          boxTool.register(stack);
-          boxTool.createCropBoxByWorld(
-              volume.minX, volume.minY, Math.abs(volume.maxX - volume.minX),
-              Math.abs(volume.maxY - volume.minY), 0);
-
-          var onUpdate = function(field, newValue, oldValue) {
-            boxTool.cropBox.top = volume.minY;
-            boxTool.cropBox.bottom = volume.maxY;
-            boxTool.cropBox.left = volume.minX;
-            boxTool.cropBox.right = volume.maxX;
-            boxTool.updateCropBox();
-          };
-
-          var onCloseVolumeEdit = function() {
-            boxTool.destroy();
-          };
-
-          return [onUpdate, onCloseVolumeEdit];
-        } else {
-          return [null, null];
-        }
-      }
-    },
-
-    /**
-     * Convex hulls can be created around a set of points. Points are provided
-     * by point sources which then can be restricted further.
-     */
-    "convexhull": {
-      name: "Convex hull",
-      createSettings: function(volume) {
+        // TODO source is never used?
         var source = function(e) {
           var source = CATMAID.skeletonListSources.getSource(this.value);
           volume.set("neuronSource", source);
         };
 
+        var alpha = CATMAID.DOM.createInputSetting ... TODO
+
         var ruleType = function(e) { };
         var $settings = $('<div />');
         var $content = CATMAID.DOM.addSettingsContainer($settings,
-            "Convex hull rule settings", false);
+            name + " rule settings", false);
 
         // Option to control preview
         var preview = CATMAID.DOM.createCheckboxSetting(
@@ -450,7 +392,7 @@
           createSettings(nodeFilterSettingsContainer, newRuleOptions);
         };
         $content.append(CATMAID.DOM.createSelectSetting("Node filter",
-          nodeFilters, "Nodes inside the convex hull", function(e) {
+          nodeFilters, "Nodes inside the " + name", function(e) {
             updateNodeFilterSettings(this.value);
           }));
         $content.append(nodeFilterSettings);
@@ -557,7 +499,7 @@
         return $settings;
       },
       createVolume: function(options) {
-        return new CATMAID.ConvexHullVolume(options);
+        return new CATMAID[theclass](options).init();
       },
       /**
        * Create an array of handlers: [onVolumeUpdate, onVolumeClose]
@@ -587,6 +529,85 @@
         return [onUpdate, onClose];
       }
     }
+  };
+
+  var volumeTypes = {
+    "box": {
+      name: "Box",
+      createSettings: function(volume) {
+        var minX = function(e) { volume.set("minX", Number(this.value)); };
+        var minY = function(e) { volume.set("minY", Number(this.value)); };
+        var minZ = function(e) { volume.set("minZ", Number(this.value)); };
+        var maxX = function(e) { volume.set("maxX", Number(this.value)); };
+        var maxY = function(e) { volume.set("maxY", Number(this.value)); };
+        var maxZ = function(e) { volume.set("maxZ", Number(this.value)); };
+        var $settings = $('<div />');
+        var $content = CATMAID.DOM.addSettingsContainer($settings,
+            "Box settings", false);
+        $content.append(CATMAID.DOM.createInputSetting("Min X", volume.minX,
+              "X coordinate of the boxes minimum corner.", minX));
+        $content.append(CATMAID.DOM.createInputSetting("Min Y", volume.minY,
+              "Y coordinate of the boxes minimum corner.", minY));
+        $content.append(CATMAID.DOM.createInputSetting("Min Z", volume.minZ,
+              "Z coordinate of the boxes minimum corner.", minZ));
+        $content.append(CATMAID.DOM.createInputSetting("Max X", volume.maxX,
+              "X coordinate of the boxes maximum corner.", maxX));
+        $content.append(CATMAID.DOM.createInputSetting("Max Y", volume.maxY,
+              "Y coordinate of the boxes maximum corner.", maxY));
+        $content.append(CATMAID.DOM.createInputSetting("Max Z", volume.maxZ,
+              "Z coordinate of the boxes maximum corner.", maxZ));
+
+        return $settings;
+      },
+      createVolume: function(options) {
+        return new CATMAID.BoxVolume(options);
+      },
+      /**
+       * Create an array of handlers: [onVolumeUpdate, onVolumeClose]
+       */
+      createHandlers: function(volume) {
+        var handlers = [null, null];
+        if (project.focusedStackViewer) {
+          var stack = project.focusedStackViewer;
+          // TODO: Use a proper layer for this and make this work wirh regular
+          // ortho stacks.
+          var boxTool = new CATMAID.BoxSelectionTool();
+          boxTool.destroy();
+          boxTool.register(stack);
+          boxTool.createCropBoxByWorld(
+              volume.minX, volume.minY, Math.abs(volume.maxX - volume.minX),
+              Math.abs(volume.maxY - volume.minY), 0);
+
+          var onUpdate = function(field, newValue, oldValue) {
+            boxTool.cropBox.top = volume.minY;
+            boxTool.cropBox.bottom = volume.maxY;
+            boxTool.cropBox.left = volume.minX;
+            boxTool.cropBox.right = volume.maxX;
+            boxTool.updateCropBox();
+          };
+
+          var onCloseVolumeEdit = function() {
+            boxTool.destroy();
+          };
+
+          return [onUpdate, onCloseVolumeEdit];
+        } else {
+          return [null, null];
+        }
+      }
+    },
+
+    /**
+     * Convex hulls can be created around a set of points. Points are provided
+     * by point sources which then can be restricted further.
+     */
+    "convexhull": makeVolume("Convex hull", "ConvexHullVolume"),
+
+    /**
+     * Alpha-shapes can be created around a set of points. Points are provided
+     * by point sources which are then restricted further.
+     */
+     "alphashape": makeVolume("Alpha shape", "AlphaShapeVolume", true)
   };
 
   /**

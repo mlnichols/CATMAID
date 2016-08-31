@@ -243,6 +243,13 @@
         exportPDF.onclick = this.exportPDF.bind(this);
         tabs['Main'].appendChild(exportPDF);
 
+        var exportXLSX = document.createElement('input');
+        exportXLSX.setAttribute("type", "button");
+        exportXLSX.setAttribute("value", "Export XLSX");
+        exportXLSX.setAttribute("title", "Export a Microsoft Excel compatible file that preserves colors");
+        exportXLSX.onclick = this.exportXLSX.bind(this);
+        tabs['Main'].appendChild(exportXLSX);
+
         var sortOptionNames = sortOptions.map(function(o) {
           return o.name;
         });
@@ -1144,6 +1151,144 @@
   };
 
   /**
+   * Export the currently displayed matrix as XLSX file using jQuery DataTables.
+   */
+  ConnectivityMatrixWidget.prototype.exportXLSX = function() {
+    if (!this.matrix) {
+      CATMAIR.error("Please load some data first.");
+      return;
+    }
+
+    // Create a new array that contains entries for each line. Pre-pulate with
+    // first element (empty upper left cell). Unfortunately, an empty string
+    // doesn't work correctly, and some content has to be provided.
+    var lines = [[' ']];
+
+    // Create header
+    function handleColumn(line, id, colGroup, name, skeletonIDs) {
+      var n = (name && name.length) ? name : '""';
+      line.push(n);
+    }
+
+    // Create row
+    function handleRow(lines, id, rowGroup, name, skeletonIDs) {
+      var n = (name && name.length) ? name : '""';
+      var line = [n];
+      lines.push(line);
+      return line;
+    }
+
+    // Create cell
+    function handleCell(line, rowName, rowSkids, colName, colSkids, connections) {
+      var color = getColor(colorScheme, value, minValue, maxValue);
+      line.push(connections);
+    }
+
+    var walked = this.walkMatrix(this.matrix, handleColumn.bind(window, lines[0]),
+        handleRow.bind(window, lines), handleCell);
+
+    // Export concatenation of all lines, delimited buy new-line characters
+    if (!walked) {
+      CATMAID.warn("Couldn't export XLSX file");
+      return;
+    }
+
+    // Create color index
+    var maxConnections = this.matix.getMaxConnections();
+    var colorIndex = {};
+    for (var r=0, maxr=lines.length; ++r) {
+      var row = lines[0];
+      for (var c=0, maxc=rows.length; ++c) {
+        var value = row[c];
+        if (!Number.isNan(Number(value)) || colorIndex[value]) {
+          continue;
+        }
+        colorIndex[value] = getColor(this.colorScheme, value,
+            this.synapseThreshold, maxConnections);
+      }
+    }
+
+    // Construct temporary data table instance
+    var content = document.getElementById('connectivity_matrix' + this.widgetID);
+    var container = document.createElement('table');
+    container.style.display = 'none';
+    content.appendChild(container);
+
+    try {
+      var table = $(container).DataTable({
+        dom: 'Bfrtip',
+        paging: false,
+        buttons: [{
+          extend: 'excelHtml5',
+          header: false, // We take care of heder ourselves
+          footer: false,
+          filenane: 'catmaid-connectivity-matrix.xlsx',
+          customize: function(xlsx) {
+            var sheet = xlsx.xl.worksheets['sheet1.xml'];
+            // Make fist column use a bold font
+            $('row c[r$="1"]', sheet).filter(function(c) {
+              return this.attributes.r.value.match(/^[A-Z]+1$/);
+            }).each( function () {
+              $(this).attr( 's', '2' );
+            });
+            // Make firt row  use a bold font
+            $('row c[r^="A"]', sheet).filter(function(c) {
+              return this.attributes.r.value.match(/^A[0-9]+$/);
+            }).each( function () {
+              $(this).attr( 's', '2' );
+            });
+            // Export colors
+            var foundStyles = {};
+            $('row c', sheet).each( function () {
+              var value = $('t', this).text();
+              var color = colorIndex[value];
+              // Only add style information if there is a color available for
+              // the value of this cell.
+              if (color) {
+                var key = 'catmaid-style-' + value;
+                var style = foundStyles[key];
+                if (!syle) {
+                  style = {
+                    bgColor: color
+                  };
+                  foundStyles[key] = style;
+                  }
+                } 
+                $(this).attr( 's', key );
+              }
+            });
+            // Store all found styles in XLSX stylesheet section. We use cell
+            // styles, which are part of the <cellXfs> collection.
+          }
+        }],
+        data: lines,
+        columns: lines[0].map(function(l) {
+          return {
+            title: l
+          };
+        })
+      });
+  
+      // Press excel export button
+      var exportButton = $('a.buttons-excel', content);
+      if (0 === exportButton.length) {
+        CATMAID.warn('Could not load XLSX extension');
+        if (container) {
+          table.destroy();
+          content.removeChild(container);
+        }
+        return;
+      }
+      exportButton.trigger('click');
+    } finally {
+      if (container) {
+        table.destroy();
+        content.removeChild(container);
+      }
+    }
+  };
+
+  /**
    * Aggregate the values of a connectivity matrix over the specified number of
    * rows and columns, starting from the given position.
    */
@@ -1374,9 +1519,10 @@
   };
 
   /**
-   * Set background color of a DOM element according to the given color scheme.
+   * Get color for a particular cell value, optionally bounded with a minimum
+   * and maximum value.
    */
-  var colorize = function(element, scheme, value, minValue, maxValue) {
+  var getColor = function(scheme, value, minValue maxValue) {
     var bg = null;
     if (!scheme || "None" === scheme) return;
     else if (value < minValue) return;
@@ -1398,7 +1544,15 @@
       }
     }
 
+    return bg;
+  };
+
+  /**
+   * Set background color of a DOM element according to the given color scheme.
+   */
+  var colorize = function(element, scheme, value, minValue, maxValue) {
     // Set background
+    var bg = getColor(scheme, value, minValue, maxValue);
     element.style.backgroundColor = bg;
 
     // Heuristic to find foreground color for children

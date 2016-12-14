@@ -2,20 +2,30 @@ notifications:
   email: false
 language: python
 cache: pip
-python:
-  - "2.7"
+python: "2.7"
 env:
   global:
     - SLIMERJSLAUNCHER=$(which firefox) DISPLAY=:99.0 PATH=$TRAVIS_BUILD_DIR/slimerjs:$PATH TMPDIR=$TRAVIS_BUILD_DIR/tmp
 addons:
-  firefox: "38.0"
   apt:
     sources:
     - precise-pgdg-9.5
     packages:
     - postgresql-9.5
     - postgresql-contrib-9.5
+  firefox: "38.0"
   postgresql: 9.5
+matrix:
+  include:
+    - addons:
+        apt:
+          sources:
+          - precise-pgdg-9.6
+          packages:
+          - postgresql-9.6
+          - postgresql-contrib-9.6
+        firefox: "38.0"
+        postgresql: 9.6
 before_install:
   - mkdir tmp
   - travis_retry sudo apt-get update -y -qq

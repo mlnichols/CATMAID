@@ -1022,7 +1022,7 @@
         var reviewWidget = CATMAID.ReviewSystem.getLastFocused();
         if (reviewWidget) {
           if (reviewWidget.validSegment()) {
-            reviewWidget.moveNodeInSegmentBackward();
+            reviewWidget.moveNodeInSegmentBackward(e.shiftKey);
           }
         }
         return true;

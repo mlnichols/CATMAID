@@ -181,7 +181,7 @@
     W.prototype = CATMAID.WebGLApplication.prototype;
     this.webglapp = new W();
     this.webglapp.init(this.width - leftWidth - 50, usable_height,
-        'dialog-3d-view'); // add to the right
+        right); // add to the right
     // Activate downstream shading in split mode
     if (!this.in_merge_mode) {
       this.webglapp.options.shading_method = 'active_node_split';

@@ -74,6 +74,9 @@ Miscellaneous:
   information" setting is the Settings Widget is checked, additional information
   is fetched from the back-end.
 
+- Split/Merge dialog: the node count for both respecivly remaining/new and
+  remaining/old are now on top of the annotation lists.
+
 
 ### Bug fixes
 

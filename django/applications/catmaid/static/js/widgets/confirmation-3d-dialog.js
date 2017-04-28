@@ -100,10 +100,10 @@
     this.controlPanel = left;
     this.viewerPanel = right;
 
-    // Create a 3D View that is not a SkeletonSource neither in an instance registry
-    var W = function() {};
-    W.prototype = CATMAID.WebGLApplication.prototype;
-    this.webglapp = new W();
+    // Create a 3D Viewer without registering a skeleton source
+    this.webglapp = new CATMAID.WebGLApplication({
+      registerSource: false
+    });
     // add to the right
     this.webglapp.init((this.width - this.controlPanelWidth),
         this.usableHeight, right);
